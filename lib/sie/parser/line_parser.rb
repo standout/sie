@@ -12,18 +12,34 @@ module Sie
         first_token = tokens.shift
 
         entry = Entry.new(first_token.label)
-        entry_type = first_token.entry_type
+        line_entry_type = first_token.entry_type
 
-        entry_type.each_with_index do |entry_type, i|
-          break if i >= tokens.size
+        ti = ai = 0
+        while ti < tokens.size && ai < line_entry_type.size
+          attr_entry_type = line_entry_type[ai]
 
-          if entry_type.is_a?(Hash)
-            skip_array(tokens, i)
-            next
+          if attr_entry_type.is_a?(Hash)
+            label = attr_entry_type[:name]
+            type = attr_entry_type[:type]
+            entry.attributes[label] ||= []
+
+            ti += 1
+            hash_tokens = []
+            while !tokens[ti].is_a?(Sie::Parser::Tokenizer::EndArrayToken)
+              hash_tokens << tokens[ti].value
+              ti += 1
+            end
+
+            hash_tokens.each_slice(type.size).each do |slice|
+              entry.attributes[label] << Hash[type.zip(slice)]
+            end
           else
-            label = entry_type
-            entry.attributes[label] = tokens[i].value
+            label = attr_entry_type
+            entry.attributes[label] = tokens[ti].value
           end
+
+          ti += 1
+          ai += 1
         end
 
         entry
@@ -33,15 +49,6 @@ module Sie
 
       def tokenize(line)
         Tokenizer.new(line).tokenize
-      end
-
-      def skip_array(tokens, i)
-        if tokens[i].is_a?(Tokenizer::BeginArrayToken) &&
-         !tokens[i+1].is_a?(Tokenizer::EndArrayToken)
-          raise "We currently don't support metadata within entries as we haven't had a need for it yet (the data between {} in #{line})."
-        end
-
-        tokens.reject! { |token| token.is_a?(Tokenizer::EndArrayToken) }
       end
     end
   end
